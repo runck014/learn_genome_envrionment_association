@@ -1,0 +1,79 @@
+---
+title: "01_vcf_to_genotype_matrix"
+output: html_document
+date: "2024-08-10"
+---
+
+# Read / write vcf files
+
+```{r}
+library(vcfR)
+library(genetics)
+library(data.table)
+
+setwd("/panfs/jay/groups/12/iaa/runck014/2024/2024_GEA")
+vcf_in <- read.vcfR(file = "data/cranberry/wild_cranberry_unphased_genotypes.vcf") # need unphased genotypes for rrBLUP analyses
+vcf_in
+```
+
+# Summarize the vcfR Object
+
+```{r}
+str(vcf_in)
+```
+
+```{r}
+summary(vcf_in)
+```
+
+```{r}
+head(vcf_in)
+```
+
+```{r}
+names(vcf_in)
+```
+
+# Recap on vcf
+
+It seems like the vcfR function imports the vcf file as is, but structures the headers in three different objects based on the major section. The data itself is still strings.
+
+# Processing the VCF
+
+Using genetics library because had conflicts with others.
+
+```{R}
+genotype_data <- extract.gt(vcf_in, element = "GT", as.numeric = FALSE)
+
+genotype_df <- as.data.frame(genotype_data)
+head(genotype_df)
+```
+
+```{R}
+# Define the conversion function
+convert_genotype <- function(genotype) {
+  if (genotype == "0|0") {
+    return(-1)  # Homozygous reference
+  } else if (genotype == "0|1" || genotype == "1|0") {
+    return(1)  # Heterozygous
+  } else if (genotype == "1|1") {
+    return(0)  # Homozygous alternate
+  } else {
+    return(NA)  # Missing or other types of data
+  }
+}
+
+# Apply the conversion function to the entire data frame
+numeric_genotypes <- as.data.frame(lapply(genotype_df, function(column) {
+  sapply(column, convert_genotype)
+}))
+```
+
+```{R}
+rownames(numeric_genotypes) <- rownames(genotype_df)
+head(numeric_genotypes)
+```
+
+```{R}
+write.csv(numeric_genotypes, "../data/cranberry/20240810_runck_genotype_matrix.csv", row.names = TRUE)
+```
